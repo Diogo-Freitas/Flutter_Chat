@@ -1,20 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'firebase_options.dart';
 import 'pages/home_page.dart';
 
-void main() async{
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  await FirebaseFirestore.instance
-      .collection("collection")
-      .doc("document")
-      .set({"text": "Diogo-Freitas"});
-
+void main() {
   runApp(const MyApp());
 }
 
@@ -26,10 +13,12 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Chat',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        iconTheme: const IconThemeData(color: Colors.blueAccent),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
       home: const MyHomePage(title: 'Chat'),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
