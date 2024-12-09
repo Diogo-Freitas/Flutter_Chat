@@ -22,7 +22,37 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Colors.blueAccent,
         title: Text(widget.title, style: const TextStyle(color: Colors.white)),
       ),
-      body: TextComposer(sendMessage: _sendMessage),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('messages')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final List<DocumentSnapshot> documents =
+                      snapshot.data!.docs.reversed.toList();
+
+                  return ListView.builder(
+                    reverse: false,
+                    itemCount: documents.length,
+                    itemBuilder: (context, index) {
+                      final data =
+                          documents[index].data() as Map<String, dynamic>;
+                      return ListTile(
+                        title: Text(data['text'] ?? ''),
+                      );
+                    },
+                  );
+                }),
+          ),
+          TextComposer(sendMessage: _sendMessage),
+        ],
+      ),
     );
   }
 
@@ -52,6 +82,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (text != null) data['text'] = text;
 
-    FirebaseFirestore.instance.collection('messages').add(data);
+    FirebaseFirestore.instance
+        .collection('messages')
+        .doc(DateTime.now().millisecondsSinceEpoch.toString())
+        .set(data);
   }
 }
