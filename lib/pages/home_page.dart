@@ -1,7 +1,9 @@
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:chat/widgets/text_composer.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/firebase_service.dart';
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../widgets/text_composer.dart';
 import 'dart:io';
 
 class MyHomePage extends StatefulWidget {
@@ -14,6 +16,45 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  final AuthService _authService = AuthService();
+  final FirebaseService _firebaseService = FirebaseService();
+
+  User? _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeUser();
+  }
+
+  void _initializeUser() async {
+    _user = await _authService.getCurrentUser();
+    setState(() {});
+  }
+
+  void _sendMessage({String? text, File? image}) async {
+    final user = await _authService.signInWithGoogle();
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível fazer login.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final data = {
+      'uid': user.uid,
+      'senderName': user.displayName,
+      'senderPhotoUrl': user.photoURL,
+      'text': text,
+    };
+
+    _firebaseService.sendMessage(data: data, image: image);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -26,65 +67,29 @@ class _MyHomePageState extends State<MyHomePage> {
         children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('messages')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final List<DocumentSnapshot> documents =
-                      snapshot.data!.docs.reversed.toList();
-
-                  return ListView.builder(
-                    reverse: false,
-                    itemCount: documents.length,
-                    itemBuilder: (context, index) {
-                      final data =
-                          documents[index].data() as Map<String, dynamic>;
-                      return ListTile(
-                        title: Text(data['text'] ?? ''),
-                      );
-                    },
-                  );
-                }),
+              stream: _firebaseService.getMessageStream(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final documents = snapshot.data!.docs.reversed.toList();
+                return ListView.builder(
+                  reverse: true,
+                  itemCount: documents.length,
+                  itemBuilder: (context, index) {
+                    final data =
+                        documents[index].data() as Map<String, dynamic>;
+                    return ListTile(
+                      title: Text(data['text'] ?? ''),
+                    );
+                  },
+                );
+              },
+            ),
           ),
           TextComposer(sendMessage: _sendMessage),
         ],
       ),
     );
-  }
-
-  void _sendMessage({String? text, File? image}) async {
-    final Map<String, dynamic> data = {};
-
-    if (image != null) {
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child(DateTime.now().millisecondsSinceEpoch.toString());
-
-      final uploadTask = storageRef.putFile(image);
-
-      try {
-        final taskSnapshot = await uploadTask;
-        final imageUrl = await taskSnapshot.ref.getDownloadURL();
-        data['imageUrl'] = imageUrl;
-      } catch (error) {
-        /*
-         Gera uma URL para uma imagem aleatórioa de teste,
-         para caso não tenha acesso ao Storage do Firebase.
-         */
-        data['text'] = error.toString();
-        data['imageUrl'] = 'https://picsum.photos/500/500';
-      }
-    }
-
-    if (text != null) data['text'] = text;
-
-    FirebaseFirestore.instance
-        .collection('messages')
-        .doc(DateTime.now().millisecondsSinceEpoch.toString())
-        .set(data);
   }
 }
