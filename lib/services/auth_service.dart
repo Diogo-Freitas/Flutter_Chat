@@ -32,4 +32,9 @@ class AuthService {
       throw Exception('Erro no login: $e');
     }
   }
+
+  Future<void> signOutWithGoogle() async {
+    FirebaseAuth.instance.signOut();
+    _googleSignIn.signOut();
+  }
 }

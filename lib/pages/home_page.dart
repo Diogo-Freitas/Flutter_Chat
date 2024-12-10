@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../widgets/chat_message.dart';
 import '../widgets/text_composer.dart';
 import 'dart:io';
 
@@ -20,22 +21,28 @@ class _MyHomePageState extends State<MyHomePage> {
   final FirebaseService _firebaseService = FirebaseService();
 
   User? _user;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeUser();
-  }
 
-  void _initializeUser() async {
-    _user = await _authService.getCurrentUser();
-    setState(() {});
+    FirebaseAuth.instance.authStateChanges().listen((user){
+      setState(() {
+        _user = user;
+      });
+    });
   }
 
   void _sendMessage({String? text, File? image}) async {
-    final user = await _authService.signInWithGoogle();
 
-    if (user == null) {
+    setState(() {
+      _isLoading = true;
+    });
+
+    _user ??= await _authService.signInWithGoogle();
+
+    if (_user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Não foi possível fazer login.'),
@@ -46,13 +53,18 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     final data = {
-      'uid': user.uid,
-      'senderName': user.displayName,
-      'senderPhotoUrl': user.photoURL,
+      'uid': _user!.uid,
+      'senderName': _user!.displayName,
+      'senderPhotoUrl': _user!.photoURL,
       'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
     };
 
-    _firebaseService.sendMessage(data: data, image: image);
+    await _firebaseService.sendMessage(data: data, image: image);
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   @override
@@ -61,7 +73,27 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: Colors.blueAccent,
-        title: Text(widget.title, style: const TextStyle(color: Colors.white)),
+        title: Text(
+          _user?.displayName ?? widget.title,
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          _user != null
+              ? IconButton(
+                  onPressed: (){
+                    _authService.signOutWithGoogle();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Você saiu  com sucesso!.'),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.exit_to_app,
+                    color: Colors.white,
+                  ))
+              : Container(),
+        ],
       ),
       body: Column(
         children: [
@@ -79,14 +111,13 @@ class _MyHomePageState extends State<MyHomePage> {
                   itemBuilder: (context, index) {
                     final data =
                         documents[index].data() as Map<String, dynamic>;
-                    return ListTile(
-                      title: Text(data['text'] ?? ''),
-                    );
+                    return ChatMessage(data: data, mine: data['uid'] == _user?.uid);
                   },
                 );
               },
             ),
           ),
+          _isLoading ? const LinearProgressIndicator() : Container(),
           TextComposer(sendMessage: _sendMessage),
         ],
       ),
